@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<title>线上塔罗·SiliconCloud</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<style>
+  html,body{height:100%;margin:0;font-family:-apple-system,BlinkMacSystemFont;background:#111;color:#eee}
+  body{background:url('https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=1350&q=80') center/cover no-repeat fixed}
+  #overlay{background:rgba(0,0,0,.65);min-height:100%;padding:20px 0}
+  #app{max-width:420px;margin:0 auto;padding:0 12px;text-align:center}
+  h1{margin:0 0 20px;font-size:26px}
+  button{background:#ffd700;color:#000;border:none;padding:12px 22px;border-radius:30px;font-size:16px;font-weight:700;cursor:pointer;margin:6px}
+  button:disabled{opacity:.5}
+  #cards{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin:16px 0}
+  .card{width:28%;border-radius:10px;box-shadow:0 0 8px rgba(0,0,0,.4)}
+  #previewImg{max-width:90%;border-radius:10px;margin:10px 0}
+  #messages{max-height:500px;overflow-y:auto;text-align:left;background:rgba(0,0,0,.35);padding:10px;border-radius:8px;font-size:14px;line-height:1.6;white-space:pre-wrap;word-wrap:break-word;}
+
+  /* 手机端优化 */
+  @media screen and (max-width: 480px) {
+    h1{font-size:22px}
+    button{padding:10px 18px;font-size:14px}
+    .card{width:45%;margin-bottom:10px}
+    #messages{font-size:13px;max-height:400px}
+  }
+</style>
+</head>
+<body>
+<div id="overlay">
+  <div id="app">
+    <h1>🔮 线上塔罗占卜 🔮</h1>
+    <button id="drawBtn">🎴 抽三张牌</button>
+    <div id="cards"></div>
+    <div id="messages"></div>
+  </div>
+</div>
+
+<script>
+/* ========== 硅基流动配置（后端写死，前端不可见） ========== */
+const SILICON_BASE = 'https://api.siliconflow.cn/v1';   // 官方 endpoint
+const SILICON_KEY  = 'sk-rixslephaxenlcblzpjwcyvhcnlddekytlwurygmdcptomlb'; // 换成你的
+const BACKEND_ROLE =
+`你是一位神秘而温柔的塔罗占卜师。
+本次已为用户随机抽出三张牌（已给出牌名与正逆位），
+请结合用户上传的照片氛围，用简洁、诗意且易懂的中文给出三段式解读：过去 / 现在 / 未来。
+避免负面绝对化。`;
+
+/* ========== 牌库（使用开源可商用的塔罗牌图片） ========== */
+const DECK=[
+  {name:'愚者',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/00_Fool.jpg'},
+  {name:'魔术师',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/01_Magician.jpg'},
+  {name:'女祭司',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/02_High_Priestess.jpg'},
+  {name:'皇后',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/03_Empress.jpg'},
+  {name:'皇帝',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/04_Emperor.jpg'},
+  {name:'教皇',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/05_Hierophant.jpg'},
+  {name:'恋人',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/06_Lovers.jpg'},
+  {name:'战车',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/07_Chariot.jpg'},
+  {name:'力量',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/08_Strength.jpg'},
+  {name:'隐士',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/09_Hermit.jpg'},
+  {name:'命运之轮',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/10_Wheel_of_Fortune.jpg'},
+  {name:'正义',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/11_Justice.jpg'},
+  {name:'倒吊人',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/12_Hanged_Man.jpg'},
+  {name:'死神',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/13_Death.jpg'},
+  {name:'节制',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/14_Temperance.jpg'},
+  {name:'恶魔',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/15_Devil.jpg'},
+  {name:'塔',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/16_Tower.jpg'},
+  {name:'星星',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/17_Star.jpg'},
+  {name:'月亮',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/18_Moon.jpg'},
+  {name:'太阳',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/19_Sun.jpg'},
+  {name:'审判',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/20_Judgement.jpg'},
+  {name:'世界',url:'https://raw.githubusercontent.com/mixvlad/TarotCards/main/tarot/rider-waite/full/21_World.jpg'}
+];
+
+/* ========== 工具函数 ========== */
+const $=id=>document.getElementById(id);
+const drawBtn=$('drawBtn'),cardsEl=$('cards'),messagesEl=$('messages');
+let drawnCards=[];
+
+/* ---------- 随机发牌 ---------- */
+drawBtn.onclick=()=>{
+  drawnCards=[...DECK].sort(()=>Math.random()-0.5).slice(0,3)
+                      .map(c=>({...c, upright:Math.random()>.5}));
+  cardsEl.innerHTML='';
+  drawnCards.forEach(c=>{
+    const img=new Image(); img.src=c.url; img.className='card';
+    img.alt=`${c.name}${c.upright?'（正位）':'（逆位）'}`;
+    // 为逆位图片添加特殊样式以明显区分
+    if (!c.upright) {
+      img.style.transform = 'rotate(180deg)';
+    }
+    cardsEl.appendChild(img);
+  });
+  drawBtn.style.display='none';
+  // 抽卡后立即进行解读
+  doReading();
+};
+
+/* ---------- 硅基流动请求 ---------- */
+async function doReading(){
+  const cardText=drawnCards.map((c,i)=>`第${i+1}张：${c.name}${c.upright?'（正位）':'（逆位）'}`).join('\n');
+  appendMsg('🪄 正在请 AI 解读…');
+  try{
+    console.log('Sending request to SiliconCloud API');
+    const requestBody = {
+      model: 'zai-org/GLM-4.5-Air',  // 更换为支持视觉的模型
+      messages: [
+        {role: 'system', content: BACKEND_ROLE},
+        {role: 'user', content: [
+          {type: 'text', text: `你是泰勒斯，香巴拉巫女、时间系魔法师。现在需要根据用户实际抽到的这三张塔罗牌进行解读：
+          ${cardText}
+
+          要求：
+          1. 必须针对上述三张具体牌面进行解读
+          2. 用泰勒斯的傲娇口吻：句尾带「～」，自称「本公主」
+          3. 三段式：过去（第一张牌）/现在（第二张牌）/未来（第三张牌）
+          4. 每段包含：牌名+正逆位意义+与用户该时间阶段的关联吐槽
+          5. 禁止编造牌面，必须基于给出的牌进行解读`}
+        ]}
+      ],
+      max_tokens: 1024,
+      temperature: 0.7,
+      enable_thinking: true,
+      thinking_budget: 3000,
+      min_p: 0.1,
+      top_p: 0.9,
+      top_k: 50,
+      frequency_penalty: 1
+    };
+    
+    console.log('Request body:', JSON.stringify(requestBody, null, 2));
+    
+    const res = await fetch(`${SILICON_BASE}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SILICON_KEY}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+    console.log('API response status:', res.status);
+    console.log('API response headers:', res.headers);
+    if(!res.ok) {
+      const errorText = await res.text();
+      console.error('API error response:', errorText);
+      throw new Error(errorText);
+    }
+    const responseJson = await res.json();
+    console.log('API response JSON:', responseJson);
+    const txt=responseJson.choices[0].message.content;
+    appendMsg(txt,'bot');
+  }catch(e){ 
+    console.error('解读失败:', e);
+    appendMsg('❌ 解读失败：'+e.message,'bot'); 
+  }
+}
+
+function appendMsg(text,who='info'){
+  const div=document.createElement('div');
+  div.className='message '+(who==='bot'?'bot':'');
+  div.textContent=text;
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop=messagesEl.scrollHeight;
+}
+</script>
+</body>
+</html>
